@@ -99,7 +99,7 @@ input[type="file"]{display:none}
 </style>
 </head>
 <body>
-<div class="ver-tag">v2 direct</div>
+<div class="ver-tag">v3 fix</div>
 <div class="toast" id="toast"></div>
 <header>
   <div class="logo">
@@ -624,30 +624,44 @@ el.textContent = ’\u2715 Network error: ’ + (e.message || e);
 }
 }
 
+function safeOn(id, evt, fn) {
+try {
+var el = document.getElementById(id);
+if (el) el.addEventListener(evt, fn);
+else console.warn(‘Element not found:’, id);
+} catch(e) { console.error(’Error wiring ’ + id, e); }
+}
+
 function init() {
-updateCount();
-updateNoKeyBanner();
-setupUpload();
-document.getElementById(‘t-new’).addEventListener(‘click’, function() { goTab(‘new’); });
-document.getElementById(‘t-list’).addEventListener(‘click’, function() { goTab(‘list’); });
-document.getElementById(‘t-export’).addEventListener(‘click’, function() { goTab(‘export’); });
-document.getElementById(‘t-settings’).addEventListener(‘click’, function() { goTab(‘settings’); });
-document.getElementById(‘identifyBtn’).addEventListener(‘click’, identifyCard);
-document.getElementById(‘exportBtn’).addEventListener(‘click’, exportCSV);
-document.getElementById(‘clearBtn’).addEventListener(‘click’, function() {
+try { updateCount(); } catch(e){ console.error(‘updateCount failed’, e); }
+try { updateNoKeyBanner(); } catch(e){ console.error(‘updateNoKeyBanner failed’, e); }
+try { setupUpload(); } catch(e){ console.error(‘setupUpload failed’, e); }
+safeOn(‘t-new’, ‘click’, function() { goTab(‘new’); });
+safeOn(‘t-list’, ‘click’, function() { goTab(‘list’); });
+safeOn(‘t-export’, ‘click’, function() { goTab(‘export’); });
+safeOn(‘t-settings’, ‘click’, function() { goTab(‘settings’); });
+safeOn(‘identifyBtn’, ‘click’, identifyCard);
+safeOn(‘exportBtn’, ‘click’, exportCSV);
+safeOn(‘clearBtn’, ‘click’, function() {
 if (!confirm(‘Delete ALL cards from your list? This cannot be undone.’)) return;
 cards = [];
 ls.set(‘cards’, cards);
 updateCount();
 renderList();
-document.getElementById(‘exportCount’).textContent = ‘0’;
+var ec = document.getElementById(‘exportCount’);
+if (ec) ec.textContent = ‘0’;
 showToast(‘All cards cleared’);
 });
-document.getElementById(‘saveKeyBtn’).addEventListener(‘click’, saveKey);
-document.getElementById(‘testKeyBtn’).addEventListener(‘click’, testKey);
+safeOn(‘saveKeyBtn’, ‘click’, saveKey);
+safeOn(‘testKeyBtn’, ‘click’, testKey);
 }
 
+// Run init on DOMContentLoaded if not already loaded, else immediately
+if (document.readyState === ‘loading’) {
+document.addEventListener(‘DOMContentLoaded’, init);
+} else {
 init();
+}
 </script>
 
 </body>
