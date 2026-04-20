@@ -1,0 +1,13 @@
+[build]
+  functions = "netlify/functions"
+  publish = "."
+
+[[redirects]]
+  from = "/api/identify-card"
+  to = "/.netlify/functions/identify-card"
+  status = 200
+
+[[redirects]]
+  from = "/api/test-key"
+  to = "/.netlify/functions/test-key"
+  status = 200
