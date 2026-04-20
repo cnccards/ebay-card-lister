@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>eBay Card Lister</title>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#f4f6fb;--s1:#fff;--s2:#eaeef6;--s3:#d8e0f0;
+  --bdr:rgba(30,64,175,.15);--bdr2:rgba(30,64,175,.3);
+  --txt:#0f172a;--fog:#475569;--dim:#cbd5e1;
+  --blu:#1e40af;--b2:rgba(30,64,175,.08);--b3:rgba(30,64,175,.24);
+  --grn:#15803d;--g2:rgba(21,128,61,.1);--g3:rgba(21,128,61,.28);
+  --red:#b91c1c;--r2:rgba(185,28,28,.08);--r3:rgba(185,28,28,.24);
+  --gold:#b87800;--go2:rgba(184,120,0,.1);--go3:rgba(184,120,0,.28);
+  --rad:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--txt);min-height:100vh;padding-bottom:40px}
+header{position:sticky;top:0;z-index:100;background:rgba(244,246,251,.97);backdrop-filter:blur(20px);border-bottom:1px solid var(--bdr);padding:10px 14px;display:flex;align-items:center;justify-content:space-between}
+.logo{display:flex;align-items:center;gap:9px}
+.logo-ico{width:32px;height:32px;background:var(--blu);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:17px;color:#fff}
+.logo-t{font-family:'Oswald',sans-serif;font-size:16px;font-weight:700}
+.logo-s{font-size:9px;color:var(--fog);text-transform:uppercase;letter-spacing:.1em;margin-top:1px}
+.count-box{background:var(--g2);border:1px solid var(--g3);border-radius:6px;padding:4px 10px;text-align:center}
+.count-amt{font-family:'Oswald',sans-serif;font-size:16px;font-weight:700;color:var(--grn);line-height:1}
+.count-l{font-size:8px;color:var(--fog);text-transform:uppercase;letter-spacing:.1em;margin-top:1px}
+.tabs{background:#fff;border-bottom:1px solid var(--bdr);display:flex;overflow-x:auto;scrollbar-width:none;padding:0 10px}
+.tabs::-webkit-scrollbar{display:none}
+.tab{padding:11px 13px;font-size:10px;font-weight:600;color:var(--fog);border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;text-transform:uppercase;letter-spacing:.1em;flex-shrink:0}
+.tab.on{color:var(--blu);border-bottom-color:var(--blu)}
+.screen{display:none;padding:14px;max-width:640px;margin:0 auto}
+.screen.on{display:block}
+.sh{font-family:'Oswald',sans-serif;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.15em;color:var(--fog);margin-bottom:9px;margin-top:14px;display:flex;align-items:center;gap:8px}
+.sh::after{content:'';flex:1;height:1px;background:var(--bdr)}
+.sh:first-child{margin-top:0}
+.card{background:#fff;border:1px solid var(--bdr);border-radius:var(--rad);padding:14px;margin-bottom:12px}
+.ibox{background:#fff;border:1px solid var(--bdr);border-radius:var(--rad);padding:11px 13px;margin-bottom:10px;font-size:12px;color:var(--fog);line-height:1.6}
+.ibox strong{color:var(--txt)}
+.ibox.blu{border-left:3px solid var(--blu)}
+.ibox.grn{border-left:3px solid var(--grn)}
+.ibox.gold{border-left:3px solid var(--gold)}
+.ibox.red{border-left:3px solid var(--red)}
+.btn{display:inline-block;padding:10px 18px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:transform .1s}
+.btn:active{transform:scale(.97)}
+.btn-pri{background:var(--blu);color:#fff}
+.btn-grn{background:var(--grn);color:#fff}
+.btn-red{background:var(--red);color:#fff}
+.btn-ghost{background:var(--s2);color:var(--txt);border:1px solid var(--bdr)}
+.btn-wide{display:block;width:100%;padding:13px}
+.drop-zone{border:2px dashed var(--bdr2);border-radius:12px;padding:28px 16px;text-align:center;cursor:pointer;background:#fff;transition:all .2s}
+.drop-zone.dragging{border-color:var(--blu);background:var(--b2)}
+.drop-ico{font-size:40px;margin-bottom:8px}
+.drop-t{font-size:14px;font-weight:600;color:var(--txt)}
+.drop-s{font-size:11px;color:var(--fog);margin-top:4px}
+.preview-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.preview{position:relative;aspect-ratio:1;background:var(--s2);border-radius:7px;overflow:hidden}
+.preview img{width:100%;height:100%;object-fit:cover}
+.preview-x{position:absolute;top:4px;right:4px;width:22px;height:22px;border:none;background:rgba(0,0,0,.6);color:#fff;border-radius:50%;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+input[type="file"]{display:none}
+.form-grp{margin-bottom:10px}
+.form-grp label{display:block;font-size:10px;font-weight:600;color:var(--fog);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
+.form-grp input,.form-grp select,.form-grp textarea{width:100%;padding:9px 11px;border:1px solid var(--bdr2);border-radius:6px;background:#fff;color:var(--txt);font-family:inherit;font-size:13px}
+.form-grp textarea{min-height:70px;resize:vertical;font-family:inherit}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.title-char{font-size:10px;color:var(--fog);text-align:right;margin-top:2px}
+.title-char.bad{color:var(--red);font-weight:600}
+.loading{text-align:center;padding:24px;color:var(--fog)}
+.spin{width:34px;height:34px;border:3px solid var(--bdr);border-top-color:var(--blu);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 10px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.err-box{background:#fff;border:1px solid var(--r3);border-radius:var(--rad);padding:14px;margin:12px 0}
+.err-t{font-size:13px;color:var(--red);font-weight:600;margin-bottom:6px}
+.err-d{font-family:monospace;font-size:10px;background:var(--r2);padding:8px;border-radius:5px;word-break:break-all;white-space:pre-wrap;max-height:150px;overflow:auto}
+.success-box{background:var(--g2);border:1px solid var(--g3);border-radius:var(--rad);padding:11px 13px;margin-bottom:10px;font-size:12px;color:var(--grn);font-weight:600}
+.list-item{background:#fff;border:1px solid var(--bdr);border-radius:var(--rad);padding:11px 13px;margin-bottom:8px;display:flex;align-items:center;gap:10px}
+.list-item-thumb{width:50px;height:50px;background:var(--s2);border-radius:6px;flex-shrink:0;overflow:hidden}
+.list-item-thumb img{width:100%;height:100%;object-fit:cover}
+.list-item-main{flex:1;min-width:0}
+.list-item-title{font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.list-item-sub{font-size:10px;color:var(--fog);margin-top:2px;font-family:monospace}
+.list-item-price{font-family:'Oswald',sans-serif;font-size:17px;font-weight:700;color:var(--grn)}
+.list-item-del{width:28px;height:28px;border:none;background:var(--r2);color:var(--red);border-radius:5px;cursor:pointer;font-size:12px;flex-shrink:0}
+.ver-tag{position:fixed;bottom:6px;right:8px;font-size:9px;color:var(--fog);font-family:monospace;background:rgba(255,255,255,.7);padding:2px 6px;border-radius:4px;z-index:99}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(80px);background:#0f172a;color:#fff;padding:10px 20px;border-radius:99px;font-size:12px;font-weight:600;z-index:500;transition:transform .3s;white-space:nowrap;max-width:88vw;text-align:center}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.toast.grn{background:var(--grn)}
+.toast.red{background:var(--red)}
+.key-status{display:flex;align-items:center;gap:6px;font-size:11px;padding:6px 9px;border-radius:5px;margin-bottom:10px}
+.key-status.ok{background:var(--g2);color:var(--grn)}
+.key-status.bad{background:var(--r2);color:var(--red)}
+.key-status.unknown{background:var(--s2);color:var(--fog)}
+</style>
+</head>
+<body>
+<div class="ver-tag">v1 gemini</div>
+<div class="toast" id="toast"></div>
+<header>
+  <div class="logo">
+    <div class="logo-ico">&#x1F3C6;</div>
+    <div><div class="logo-t">Card Lister</div><div class="logo-s">AI-Powered eBay CSV</div></div>
+  </div>
+  <div class="count-box"><div class="count-amt" id="countNum">0</div><div class="count-l">Cards</div></div>
+</header>
+
+<div class="tabs">
+  <div class="tab on" id="t-new">&#x2795; New Card</div>
+  <div class="tab" id="t-list">&#x1F4CB; My List</div>
+  <div class="tab" id="t-export">&#x1F4E5; Export CSV</div>
+  <div class="tab" id="t-settings">&#x2699;&#xFE0F; Settings</div>
+</div>
+
+<div class="screen on" id="s-new">
+  <div class="sh">Upload Card Photos</div>
+  <div class="ibox blu">Upload <strong>front and back</strong> (2 photos recommended). The AI will identify the card and generate a listing ready for eBay.</div>
+  <div class="drop-zone" id="dropZone">
+    <div class="drop-ico">&#x1F4F7;</div>
+    <div class="drop-t">Tap to choose photos</div>
+    <div class="drop-s">or drag and drop up to 4 images</div>
+  </div>
+  <input type="file" id="fileInput" accept="image/*" multiple/>
+  <div class="preview-grid" id="previewGrid"></div>
+  <div id="identifyBtnWrap" style="display:none;margin-top:14px">
+    <button class="btn btn-pri btn-wide" id="identifyBtn">&#x2728; Identify with AI</button>
+  </div>
+  <div id="resultWrap"></div>
+</div>
+
+<div class="screen" id="s-list">
+  <div class="sh">My Card List</div>
+  <div id="listWrap"><div class="ibox">No cards added yet. Go to <strong>+ New Card</strong> to get started.</div></div>
+</div>
+
+<div class="screen" id="s-export">
+  <div class="sh">Export to eBay CSV</div>
+  <div class="ibox grn"><strong>How to use this CSV on eBay:</strong><br>1. Download the CSV below<br>2. On eBay, go to <strong>Seller Hub &rarr; Reports &rarr; Uploads</strong><br>3. Select "Create draft listings" &rarr; upload this file<br>4. Open each draft, add photos, and publish</div>
+  <div class="ibox blu"><strong>Format:</strong> Simple CSV with all eBay item specifics filled to maximize search visibility and the lightning bolt badge. Every field is keyword-packed.</div>
+  <button class="btn btn-grn btn-wide" id="exportBtn">&#x1F4E5; Download CSV (<span id="exportCount">0</span> cards)</button>
+  <div style="height:10px"></div>
+  <button class="btn btn-red btn-wide" id="clearBtn">&#x1F5D1;&#xFE0F; Clear all cards</button>
+</div>
+
+<div class="screen" id="s-settings">
+  <div class="sh">Gemini API Status</div>
+  <div id="keyStatus" class="key-status unknown">Checking...</div>
+  <button class="btn btn-ghost btn-wide" id="testKeyBtn">&#x1F504; Test API Key</button>
+  <div class="sh">About</div>
+  <div class="ibox">
+    <strong>How it works:</strong><br>
+    &bull; You upload photos of a card<br>
+    &bull; Google Gemini AI identifies it<br>
+    &bull; The app generates a fully-filled eBay listing<br>
+    &bull; You review/edit, then add to your list<br>
+    &bull; When ready, export all cards as a CSV to upload to eBay<br><br>
+    <strong>Cost:</strong> Free (Gemini free tier gives 250 requests/day)
+  </div>
+</div>
+
+<script>
+// ============ VERSION / STORAGE ============
+var ls = {
+  get: function(k) { try { return JSON.parse(localStorage.getItem(k)); } catch(e) { return null; } },
+  set: function(k,v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e) {} }
+};
+
+var cards = ls.get('cards') || [];
+var pendingImages = []; // {dataUrl, mimeType, base64}
+
+// ============ UTILITIES ============
+function showToast(msg, type) {
+  var el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (type === 'grn' ? ' grn' : type === 'red' ? ' red' : '');
+  clearTimeout(window._tt);
+  window._tt = setTimeout(function(){ el.className = 'toast'; }, 3500);
+}
+
+function goTab(n) {
+  ['new','list','export','settings'].forEach(function(t) {
+    var s = document.getElementById('s-'+t);
+    var tb = document.getElementById('t-'+t);
+    if (s) s.className = 'screen' + (t === n ? ' on' : '');
+    if (tb) tb.className = 'tab' + (t === n ? ' on' : '');
+  });
+  if (n === 'list') renderList();
+  if (n === 'export') document.getElementById('exportCount').textContent = cards.length;
+}
+
+function updateCount() {
+  document.getElementById('countNum').textContent = cards.length;
+}
+
+// Compress image to keep total request under Gemini's 20MB limit
+// Target ~1400px longest side, JPEG quality 0.85 - still plenty for card identification
+function compressImage(file) {
+  return new Promise(function(resolve, reject) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var img = new Image();
+      img.onload = function() {
+        var maxDim = 1400;
+        var w = img.width, h = img.height;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) { h = Math.round(h * (maxDim / w)); w = maxDim; }
+          else { w = Math.round(w * (maxDim / h)); h = maxDim; }
+        }
+        var canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        var dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        resolve({
+          dataUrl: dataUrl,
+          mimeType: 'image/jpeg',
+          base64: dataUrl.split(',')[1]
+        });
+      };
+      img.onerror = function() { reject(new Error('Could not load image')); };
+      img.src = e.target.result;
+    };
+    reader.onerror = function() { reject(new Error('Could not read file')); };
+    reader.readAsDataURL(file);
+  });
+}
+
+// ============ FILE UPLOAD HANDLERS ============
+function setupUpload() {
+  var dz = document.getElementById('dropZone');
+  var fi = document.getElementById('fileInput');
+  dz.addEventListener('click', function() { fi.click(); });
+  dz.addEventListener('dragover', function(e) { e.preventDefault(); dz.classList.add('dragging'); });
+  dz.addEventListener('dragleave', function() { dz.classList.remove('dragging'); });
+  dz.addEventListener('drop', function(e) {
+    e.preventDefault();
+    dz.classList.remove('dragging');
+    handleFiles(e.dataTransfer.files);
+  });
+  fi.addEventListener('change', function() {
+    handleFiles(fi.files);
+    fi.value = ''; // allow re-selecting same file
+  });
+}
+
+async function handleFiles(fileList) {
+  var files = Array.from(fileList || []).filter(function(f) { return f.type && f.type.indexOf('image/') === 0; });
+  if (!files.length) { showToast('No valid images selected', 'red'); return; }
+  if (pendingImages.length + files.length > 4) {
+    showToast('Max 4 photos per card', 'red');
+    return;
+  }
+  showToast('Processing ' + files.length + ' photo(s)...');
+  for (var i = 0; i < files.length; i++) {
+    try {
+      var result = await compressImage(files[i]);
+      pendingImages.push(result);
+    } catch (e) {
+      showToast('Skipped: ' + e.message, 'red');
+    }
+  }
+  renderPreviews();
+}
+
+function renderPreviews() {
+  var grid = document.getElementById('previewGrid');
+  var btnWrap = document.getElementById('identifyBtnWrap');
+  grid.innerHTML = pendingImages.map(function(img, i) {
+    return '<div class="preview"><img src="' + img.dataUrl + '"/><button class="preview-x" data-i="' + i + '">&#x2715;</button></div>';
+  }).join('');
+  btnWrap.style.display = pendingImages.length ? 'block' : 'none';
+  var xbtns = grid.querySelectorAll('.preview-x');
+  for (var j = 0; j < xbtns.length; j++) {
+    xbtns[j].addEventListener('click', function() {
+      var idx = parseInt(this.getAttribute('data-i'), 10);
+      pendingImages.splice(idx, 1);
+      renderPreviews();
+    });
+  }
+}
+
+// ============ AI IDENTIFY ============
+async function identifyCard() {
+  if (!pendingImages.length) { showToast('Upload at least one photo', 'red'); return; }
+
+  var resultWrap = document.getElementById('resultWrap');
+  resultWrap.innerHTML = '<div class="loading"><div class="spin"></div><div>Analyzing card with Gemini AI...<br><small>Usually takes 5-15 seconds</small></div></div>';
+
+  try {
+    var response = await fetch('/api/identify-card', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        images: pendingImages.map(function(p) { return { mimeType: p.mimeType, data: p.base64 }; })
+      })
+    });
+
+    var data;
+    try { data = await response.json(); }
+    catch (e) { throw new Error('Server returned invalid response. Status: ' + response.status); }
+
+    if (!data.ok) throw new Error(data.error || 'Identification failed');
+
+    renderCardReview(data.card, pendingImages.slice());
+  } catch (e) {
+    resultWrap.innerHTML = '<div class="err-box"><div class="err-t">&#x26A0;&#xFE0F; Could not identify card</div><div class="err-d">' + (e.message || String(e)) + '</div><button class="btn btn-pri" id="retryIdBtn" style="margin-top:10px">&#x21BB; Retry</button></div>';
+    var r = document.getElementById('retryIdBtn');
+    if (r) r.addEventListener('click', identifyCard);
+  }
+}
+
+// ============ REVIEW / EDIT CARD ============
+function renderCardReview(card, imgs) {
+  var resultWrap = document.getElementById('resultWrap');
+  var conf = card.confidence || 'medium';
+  var confColor = conf === 'high' ? 'grn' : conf === 'medium' ? 'gold' : 'red';
+
+  var html = '<div class="success-box">&#x2728; Card identified (' + conf + ' confidence). Review and edit below.</div>';
+  html += '<div class="card"><div class="sh">Title (eBay listing)</div>';
+  html += '<div class="form-grp"><textarea id="f-title" maxlength="80" style="min-height:50px">' + escapeH(card.title || '') + '</textarea><div class="title-char" id="titleChar"></div></div>';
+
+  html += '<div class="sh">Core Info</div>';
+  html += '<div class="form-row"><div class="form-grp"><label>Player</label><input id="f-player" value="' + escapeH(card.player||'') + '"/></div>';
+  html += '<div class="form-grp"><label>Year</label><input id="f-year" value="' + escapeH(card.year||'') + '"/></div></div>';
+  html += '<div class="form-row"><div class="form-grp"><label>Manufacturer</label><input id="f-mfr" value="' + escapeH(card.manufacturer||'') + '"/></div>';
+  html += '<div class="form-grp"><label>Set</label><input id="f-set" value="' + escapeH(card.set||'') + '"/></div></div>';
+  html += '<div class="form-row"><div class="form-grp"><label>Card #</label><input id="f-num" value="' + escapeH(card.cardNumber||'') + '"/></div>';
+  html += '<div class="form-grp"><label>Parallel</label><input id="f-par" value="' + escapeH(card.parallel||'') + '"/></div></div>';
+  html += '<div class="form-row-3"><div class="form-grp"><label>Sport</label><input id="f-sport" value="' + escapeH(card.sport||'') + '"/></div>';
+  html += '<div class="form-grp"><label>League</label><input id="f-league" value="' + escapeH(card.league||'') + '"/></div>';
+  html += '<div class="form-grp"><label>Team</label><input id="f-team" value="' + escapeH(card.team||'') + '"/></div></div>';
+
+  html += '<div class="sh">Attributes</div>';
+  html += '<div class="form-row-3"><div class="form-grp"><label>Rookie?</label><select id="f-rookie"><option value="Yes"' + (card.isRookie?' selected':'') + '>Yes</option><option value="No"' + (!card.isRookie?' selected':'') + '>No</option></select></div>';
+  html += '<div class="form-grp"><label>Autograph?</label><select id="f-auto"><option value="Yes"' + (card.isAutograph?' selected':'') + '>Yes</option><option value="No"' + (!card.isAutograph?' selected':'') + '>No</option></select></div>';
+  html += '<div class="form-grp"><label>Memorabilia?</label><select id="f-mem"><option value="Yes"' + (card.isMemorabilia?' selected':'') + '>Yes</option><option value="No"' + (!card.isMemorabilia?' selected':'') + '>No</option></select></div></div>';
+
+  html += '<div class="sh">Grading</div>';
+  html += '<div class="form-row-3"><div class="form-grp"><label>Graded?</label><select id="f-graded"><option value="Yes"' + (card.isGraded?' selected':'') + '>Yes</option><option value="No"' + (!card.isGraded?' selected':'') + '>No</option></select></div>';
+  html += '<div class="form-grp"><label>Grader</label><input id="f-grader" value="' + escapeH(card.grader||'None') + '"/></div>';
+  html += '<div class="form-grp"><label>Grade</label><input id="f-grade" value="' + escapeH(card.grade||'None') + '"/></div></div>';
+  html += '<div class="form-grp"><label>Cert Number</label><input id="f-cert" value="' + escapeH(card.certNumber||'') + '"/></div>';
+
+  html += '<div class="sh">Condition & Specs</div>';
+  html += '<div class="form-row"><div class="form-grp"><label>Card Condition</label><input id="f-cond" value="' + escapeH(card.cardCondition||'') + '"/></div>';
+  html += '<div class="form-grp"><label>Card Thickness</label><input id="f-thick" value="' + escapeH(card.cardThickness||'') + '"/></div></div>';
+  html += '<div class="form-grp"><label>Features (comma separated)</label><input id="f-feat" value="' + escapeH(card.features||'') + '"/></div>';
+
+  html += '<div class="sh">Price & Description</div>';
+  html += '<div class="form-grp"><label>Suggested Price (USD)</label><input id="f-price" type="text" inputmode="decimal" value="' + escapeH(String(card.suggestedPrice||'')) + '"/></div>';
+  html += '<div class="form-grp"><label>Description</label><textarea id="f-desc">' + escapeH(card.description||'') + '</textarea></div>';
+
+  html += '<div style="display:flex;gap:8px;margin-top:14px">';
+  html += '<button class="btn btn-ghost" id="cancelAddBtn" style="flex:1">&#x2715; Cancel</button>';
+  html += '<button class="btn btn-grn" id="saveCardBtn" style="flex:2">&#x2713; Add to My List</button>';
+  html += '</div></div>';
+
+  resultWrap.innerHTML = html;
+
+  // Wire live title char count
+  function updateTitleChar() {
+    var t = document.getElementById('f-title').value;
+    var el = document.getElementById('titleChar');
+    el.textContent = t.length + ' / 80 characters' + (t.length > 80 ? ' (TOO LONG)' : '');
+    el.className = 'title-char' + (t.length > 80 ? ' bad' : '');
+  }
+  document.getElementById('f-title').addEventListener('input', updateTitleChar);
+  updateTitleChar();
+
+  document.getElementById('cancelAddBtn').addEventListener('click', function() {
+    if (!confirm('Discard this card?')) return;
+    resultWrap.innerHTML = '';
+    pendingImages = [];
+    renderPreviews();
+  });
+
+  document.getElementById('saveCardBtn').addEventListener('click', function() {
+    saveCardFromForm(imgs, card);
+  });
+}
+
+function escapeH(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+    return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c];
+  });
+}
+
+function saveCardFromForm(imgs, originalCard) {
+  function v(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; }
+
+  var title = v('f-title');
+  if (title.length > 80) { showToast('Title too long (max 80 chars)', 'red'); return; }
+  if (!title) { showToast('Title is required', 'red'); return; }
+
+  var priceStr = v('f-price');
+  var price = parseFloat(priceStr);
+  if (isNaN(price) || price <= 0) { showToast('Valid price required', 'red'); return; }
+
+  var card = {
+    id: 'c_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+    addedAt: new Date().toISOString(),
+    title: title,
+    player: v('f-player'),
+    year: v('f-year'),
+    manufacturer: v('f-mfr'),
+    set: v('f-set'),
+    cardNumber: v('f-num'),
+    parallel: v('f-par'),
+    sport: v('f-sport'),
+    league: v('f-league'),
+    team: v('f-team'),
+    isRookie: v('f-rookie') === 'Yes',
+    isAutograph: v('f-auto') === 'Yes',
+    isMemorabilia: v('f-mem') === 'Yes',
+    isGraded: v('f-graded') === 'Yes',
+    grader: v('f-grader'),
+    grade: v('f-grade'),
+    certNumber: v('f-cert'),
+    cardCondition: v('f-cond'),
+    cardThickness: v('f-thick'),
+    features: v('f-feat'),
+    suggestedPrice: price,
+    description: v('f-desc'),
+    thumbnail: imgs[0] ? imgs[0].dataUrl : null,
+    // Keep other fields from original
+    vintage: originalCard.vintage || false,
+    originalReprint: originalCard.originalReprint || 'Original',
+    language: originalCard.language || 'English',
+    era: originalCard.era || '',
+    season: originalCard.season || v('f-year'),
+    memorabiliaType: originalCard.memorabiliaType || 'None'
+  };
+
+  cards.push(card);
+  ls.set('cards', cards);
+  updateCount();
+  pendingImages = [];
+  renderPreviews();
+  document.getElementById('resultWrap').innerHTML = '';
+  showToast('Added! ' + cards.length + ' card(s) in list', 'grn');
+  goTab('list');
+}
+
+// ============ LIST VIEW ============
+function renderList() {
+  var wrap = document.getElementById('listWrap');
+  if (!cards.length) {
+    wrap.innerHTML = '<div class="ibox">No cards added yet. Go to <strong>+ New Card</strong> to get started.</div>';
+    return;
+  }
+  var html = '';
+  cards.forEach(function(c) {
+    html += '<div class="list-item">';
+    html += '<div class="list-item-thumb">' + (c.thumbnail ? '<img src="' + c.thumbnail + '"/>' : '&#x1F3C6;') + '</div>';
+    html += '<div class="list-item-main">';
+    html += '<div class="list-item-title">' + escapeH(c.title) + '</div>';
+    html += '<div class="list-item-sub">' + escapeH(c.year) + ' ' + escapeH(c.set) + ' &middot; ' + escapeH(c.player) + '</div>';
+    html += '</div>';
+    html += '<div class="list-item-price">$' + c.suggestedPrice.toFixed(2) + '</div>';
+    html += '<button class="list-item-del" data-id="' + c.id + '">&#x2715;</button>';
+    html += '</div>';
+  });
+  wrap.innerHTML = html;
+  var btns = wrap.querySelectorAll('.list-item-del');
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].addEventListener('click', function() {
+      var id = this.getAttribute('data-id');
+      if (!confirm('Delete this card from your list?')) return;
+      cards = cards.filter(function(c) { return c.id !== id; });
+      ls.set('cards', cards);
+      updateCount();
+      renderList();
+    });
+  }
+}
+
+// ============ CSV EXPORT ============
+function csvEscape(v) {
+  if (v == null) return '';
+  var s = String(v);
+  if (s.indexOf(',') >= 0 || s.indexOf('"') >= 0 || s.indexOf('\n') >= 0 || s.indexOf('\r') >= 0) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+
+function exportCSV() {
+  if (!cards.length) { showToast('No cards to export', 'red'); return; }
+
+  // eBay Seller Hub bulk draft-listing format for Sports Trading Card Singles (cat 261328)
+  // Columns mirror eBay's "Create Drafts" / File Exchange template
+  var headers = [
+    'Action(SiteID=US|Country=US|Currency=USD|Version=1193|CC=UTF-8)',
+    'Category',
+    'Title',
+    'ConditionID',
+    'C:Sport',
+    'C:Graded',
+    'C:Grade',
+    'C:Grader',
+    'C:Certification Number',
+    'C:Player/Athlete',
+    'C:Year Manufactured',
+    'C:Manufacturer',
+    'C:Set',
+    'C:Card Number',
+    'C:Parallel/Variety',
+    'C:Features',
+    'C:League',
+    'C:Team',
+    'C:Autographed',
+    'C:Card Condition',
+    'C:Card Thickness',
+    'C:Vintage',
+    'C:Original/Reprint',
+    'C:Language',
+    'C:Era',
+    'C:Season',
+    'C:Memorabilia',
+    'Description',
+    'Format',
+    'Duration',
+    'StartPrice',
+    'BestOfferEnabled',
+    'Quantity',
+    'DispatchTimeMax',
+    'Location',
+    'ReturnsAcceptedOption',
+    'ReturnsWithinOption',
+    'RefundOption',
+    'ShippingType',
+    'ShippingService-1:Option',
+    'ShippingService-1:Cost',
+    'PaymentProfileName',
+    'ShippingProfileName',
+    'ReturnProfileName'
+  ];
+
+  var rows = [headers.join(',')];
+  cards.forEach(function(c) {
+    var conditionID = c.isGraded ? '2750' : '4000'; // eBay: 2750 = Graded, 4000 = Ungraded (raw)
+    var row = [
+      'Draft',                              // Action - creates a draft
+      '261328',                             // Category - Sports Trading Card Singles
+      c.title,
+      conditionID,
+      c.sport,
+      c.isGraded ? 'Yes' : 'No',
+      c.isGraded ? c.grade : '',
+      c.isGraded ? c.grader : '',
+      c.certNumber || '',
+      c.player,
+      c.year,
+      c.manufacturer,
+      c.set,
+      c.cardNumber,
+      c.parallel,
+      c.features,
+      c.league,
+      c.team,
+      c.isAutograph ? 'Yes' : 'No',
+      c.cardCondition,
+      c.cardThickness,
+      c.vintage ? 'Yes' : 'No',
+      c.originalReprint,
+      c.language,
+      c.era,
+      c.season,
+      c.isMemorabilia ? 'Yes' : 'No',
+      c.description,
+      'FixedPrice',                        // Format
+      'GTC',                                // Duration - Good Till Cancelled (best for search)
+      c.suggestedPrice.toFixed(2),         // StartPrice
+      '1',                                  // BestOfferEnabled - ENABLED = lightning bolt boost
+      '1',                                  // Quantity
+      '1',                                  // DispatchTimeMax - 1 day handling = lightning bolt boost
+      'United States',                      // Location
+      'ReturnsAccepted',                    // Returns accepted = lightning bolt boost
+      'Days_30',                            // 30 day return window
+      'MoneyBack',                          // Money back guarantee
+      'Calculated',                         // Shipping type
+      'USPSFirstClass',                     // Shipping service
+      '',                                   // Cost (let eBay calculate)
+      '',                                   // Payment profile (blank = use default)
+      '',                                   // Shipping profile
+      ''                                    // Return profile
+    ].map(csvEscape);
+    rows.push(row.join(','));
+  });
+
+  var csv = rows.join('\r\n') + '\r\n'; // Windows line endings - eBay requirement
+  var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  var today = new Date();
+  var ds = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+  a.download = 'ebay-cards-' + ds + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('CSV downloaded (' + cards.length + ' cards)', 'grn');
+}
+
+// ============ SETTINGS / KEY TEST ============
+async function testKey() {
+  var el = document.getElementById('keyStatus');
+  el.className = 'key-status unknown';
+  el.textContent = 'Testing API key...';
+  try {
+    var r = await fetch('/api/test-key');
+    var data = await r.json();
+    if (data.ok) {
+      el.className = 'key-status ok';
+      el.textContent = '\u2713 API key is working (' + data.elapsedMs + 'ms)';
+    } else {
+      el.className = 'key-status bad';
+      el.textContent = '\u2715 ' + (data.message || 'Failed') + ' [stage: ' + (data.stage || '?') + ']';
+    }
+  } catch (e) {
+    el.className = 'key-status bad';
+    el.textContent = '\u2715 Could not reach server: ' + (e.message || e);
+  }
+}
+
+// ============ INIT ============
+function init() {
+  updateCount();
+  setupUpload();
+  document.getElementById('t-new').addEventListener('click', function() { goTab('new'); });
+  document.getElementById('t-list').addEventListener('click', function() { goTab('list'); });
+  document.getElementById('t-export').addEventListener('click', function() { goTab('export'); });
+  document.getElementById('t-settings').addEventListener('click', function() { goTab('settings'); testKey(); });
+  document.getElementById('identifyBtn').addEventListener('click', identifyCard);
+  document.getElementById('exportBtn').addEventListener('click', exportCSV);
+  document.getElementById('clearBtn').addEventListener('click', function() {
+    if (!confirm('Delete ALL cards from your list? This cannot be undone.')) return;
+    cards = [];
+    ls.set('cards', cards);
+    updateCount();
+    renderList();
+    document.getElementById('exportCount').textContent = '0';
+    showToast('All cards cleared');
+  });
+  document.getElementById('testKeyBtn').addEventListener('click', testKey);
+}
+
+init();
+</script>
+</body>
+</html>
