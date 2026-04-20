@@ -98,7 +98,7 @@ input[type="file"]{display:none}
 </style>
 </head>
 <body>
-<div class="ver-tag">v4 ios tap</div>
+<div class="ver-tag">v5 flash-lite</div>
 <div class="toast" id="toast"></div>
 <header>
   <div class="logo">
@@ -164,7 +164,7 @@ input[type="file"]{display:none}
     &bull; The app generates a fully-filled eBay listing<br>
     &bull; You review/edit, then add to your list<br>
     &bull; When ready, export all cards as a CSV to upload to eBay<br><br>
-    <strong>Cost:</strong> Free (Gemini free tier gives 250 requests/day)
+    <strong>Cost:</strong> Free (Gemini free tier gives 1,000 requests/day)
   </div>
 </div>
 
@@ -179,7 +179,7 @@ var ls = {
 var cards = ls.get('cards') || [];
 var pendingImages = [];
 
-var GEMINI_MODEL = 'gemini-2.5-flash';
+var GEMINI_MODEL = 'gemini-2.5-flash-lite';
 var GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_MODEL + ':generateContent';
 
 var SYSTEM_PROMPT = "You are an expert sports card identifier and eBay lister. You will see one or more photos of a sports trading card (front, back, possibly a grading slab). Identify the card with extreme precision and return ONLY a valid JSON object matching this exact schema - no prose, no markdown fences, no explanation:\n\n" +
