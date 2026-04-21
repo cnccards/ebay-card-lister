@@ -98,7 +98,7 @@ input[type="file"]{display:none}
 </style>
 </head>
 <body>
-<div class="ver-tag">v5 flash-lite</div>
+<div class="ver-tag">v8 defaults</div>
 <div class="toast" id="toast"></div>
 <header>
   <div class="logo">
@@ -140,10 +140,21 @@ input[type="file"]{display:none}
 
 <div class="screen" id="s-export">
   <div class="sh">Export to eBay CSV</div>
-  <div class="ibox grn"><strong>How to use this CSV on eBay:</strong><br>1. Download the CSV below<br>2. On eBay, go to <strong>Seller Hub &rarr; Reports &rarr; Uploads</strong><br>3. Select "Create draft listings" &rarr; upload this file<br>4. Open each draft, add photos, and publish</div>
-  <div class="ibox blu"><strong>Format:</strong> All eBay item specifics filled to maximize search visibility and the lightning bolt badge.</div>
-  <button class="btn btn-grn btn-wide" id="exportBtn">&#x1F4E5; Download CSV (<span id="exportCount">0</span> cards)</button>
-  <div style="height:10px"></div>
+
+  <div class="ibox grn"><strong>&#x1F680; Recommended: Scheduled Listing CSV</strong><br>Full item specifics for max search visibility &amp; lightning bolt. Upload with <strong>"Create or schedule new listings"</strong>. Listings are scheduled 2 hours out so you can still edit them first.</div>
+  <button class="btn btn-grn btn-wide" id="exportScheduledBtn">&#x26A1; Scheduled Listing CSV (<span id="exportCount">0</span> cards)</button>
+
+  <div style="height:14px"></div>
+
+  <div class="ibox blu"><strong>Alternative: Draft CSV (simpler)</strong><br>Just title + description + price. Upload with <strong>"Create new drafts"</strong>. eBay AI fills item specifics when you open each draft.</div>
+  <button class="btn btn-pri btn-wide" id="exportDraftBtn">&#x1F4DD; Draft CSV (simple)</button>
+
+  <div style="height:14px"></div>
+
+  <div class="ibox"><strong>Backup CSV (optional):</strong> Full spreadsheet of all card data for your records.</div>
+  <button class="btn btn-ghost btn-wide" id="exportFullBtn">&#x1F4C4; Download Full Backup CSV</button>
+
+  <div style="height:14px"></div>
   <button class="btn btn-red btn-wide" id="clearBtn">&#x1F5D1;&#xFE0F; Clear all cards</button>
 </div>
 
@@ -217,7 +228,9 @@ var SYSTEM_PROMPT = "You are an expert sports card identifier and eBay lister. Y
 "CRITICAL RULES:\n" +
 "- Title MUST be at most 80 characters.\n" +
 "- Return ONLY the JSON object. No preamble, no backticks.\n" +
-"- For ungraded cards, set grader to 'None', grade to 'None', certNumber to ''.\n" +
+"- DEFAULT TO UNGRADED: unless you clearly see a grading slab (PSA, BGS, SGC, CGC plastic case with label), set isGraded=false, grader='None', grade='None', certNumber=''.\n" +
+"- For ungraded cards, set cardCondition='Near Mint or Better'.\n" +
+"- For graded cards, set cardCondition='Graded'.\n" +
 "- Keep every field filled - never null/undefined.";
 
 function showToast(msg, type) {
@@ -529,11 +542,19 @@ function csvEscape(v) {
   return s;
 }
 
-function exportCSV() {
+function exportScheduledCSV() {
   if (!cards.length) { showToast('No cards to export', 'red'); return; }
+
+  // Schedule all listings for 2 hours from now (gives you buffer to review/edit)
+  var future = new Date(Date.now() + 2 * 60 * 60 * 1000);
+  // Format: YYYY-MM-DD HH:MM:SS (eBay wants 24-hour UTC)
+  var pad = function(n) { return String(n).padStart(2, '0'); };
+  var scheduleTime = future.getUTCFullYear() + '-' + pad(future.getUTCMonth()+1) + '-' + pad(future.getUTCDate()) +
+    ' ' + pad(future.getUTCHours()) + ':' + pad(future.getUTCMinutes()) + ':' + pad(future.getUTCSeconds());
+
   var headers = [
     'Action(SiteID=US|Country=US|Currency=USD|Version=1193|CC=UTF-8)',
-    'Category','Title','ConditionID',
+    'Category','Title','ConditionID','ScheduleTime',
     'C:Sport','C:Graded','C:Grade','C:Grader','C:Certification Number',
     'C:Player/Athlete','C:Year Manufactured','C:Manufacturer','C:Set','C:Card Number',
     'C:Parallel/Variety','C:Features','C:League','C:Team','C:Autographed',
@@ -542,35 +563,100 @@ function exportCSV() {
     'Description','Format','Duration','StartPrice','BestOfferEnabled',
     'Quantity','DispatchTimeMax','Location','ReturnsAcceptedOption',
     'ReturnsWithinOption','RefundOption','ShippingType',
-    'ShippingService-1:Option','ShippingService-1:Cost',
-    'PaymentProfileName','ShippingProfileName','ReturnProfileName'
+    'ShippingService-1:Option','ShippingService-1:Cost'
   ];
   var rows = [headers.join(',')];
   cards.forEach(function(c) {
     var conditionID = c.isGraded ? '2750' : '4000';
     var row = [
-      'Draft','261328',c.title,conditionID,
+      'Add','261328',c.title,conditionID,scheduleTime,
       c.sport, c.isGraded ? 'Yes' : 'No', c.isGraded ? c.grade : '', c.isGraded ? c.grader : '', c.certNumber || '',
       c.player, c.year, c.manufacturer, c.set, c.cardNumber, c.parallel, c.features, c.league, c.team, c.isAutograph ? 'Yes' : 'No',
       c.cardCondition, c.cardThickness, c.vintage ? 'Yes' : 'No', c.originalReprint, c.language, c.era, c.season, c.isMemorabilia ? 'Yes' : 'No',
-      c.description, 'FixedPrice', 'GTC', c.suggestedPrice.toFixed(2), '1', '1', '1', 'United States',
-      'ReturnsAccepted', 'Days_30', 'MoneyBack', 'Calculated', 'USPSFirstClass', '', '', '', ''
+      c.description, 'FixedPrice', 'GTC', c.suggestedPrice.toFixed(2), '1', '1', '1', '48114',
+      'ReturnsAccepted', 'Days_30', 'MoneyBack', 'Calculated', 'USPSFirstClass', ''
     ].map(csvEscape);
     rows.push(row.join(','));
   });
   var csv = rows.join('\r\n') + '\r\n';
+  downloadCSV(csv, 'ebay-scheduled');
+  showToast('Scheduled Listing CSV downloaded (' + cards.length + ' cards, all specifics)', 'grn');
+}
+
+function exportEbayDraftCSV() {
+  if (!cards.length) { showToast('No cards to export', 'red'); return; }
+
+  // eBay's actual draft template headers (from their template)
+  var rows = [];
+  rows.push('#INFO,Version=0.0.2,Template= eBay-draft-listings-template_US,,,,,,,,');
+  rows.push('#INFO Action and Category ID are required fields. 1) Set Action to Draft 2) Please find the category ID for your listings here: https://pages.ebay.com/sellerinformation/news/categorychanges.html,,,,,,,,,,');
+  rows.push('"#INFO After you\'ve successfully uploaded your draft from the Seller Hub Reports tab, complete your drafts to active listings here: https://www.ebay.com/sh/lst/drafts",,,,,,,,,,');
+  rows.push('#INFO,,,,,,,,,,');
+  rows.push('Action(SiteID=US|Country=US|Currency=USD|Version=1193|CC=UTF-8),Custom label (SKU),Category ID,Title,UPC,Price,Quantity,Item photo URL,Condition ID,Description,Format');
+
+  cards.forEach(function(c) {
+    var conditionID = c.isGraded ? '2750' : 'NEW';
+    var sku = c.id ? c.id.slice(0,20) : '';
+
+    var row = [
+      'Draft',
+      sku,
+      '261328',
+      c.title,
+      '',                              // UPC - cards don't have UPCs typically
+      c.suggestedPrice.toFixed(2),
+      '1',
+      '',                              // Item photo URL - blank, add photos when finishing draft on eBay
+      conditionID,
+      c.description,
+      'FixedPrice'
+    ].map(csvEscape);
+    rows.push(row.join(','));
+  });
+
+  var csv = rows.join('\r\n') + '\r\n';
+  downloadCSV(csv, 'ebay-draft');
+  showToast('eBay Draft CSV downloaded (' + cards.length + ' cards)', 'grn');
+}
+
+function exportFullBackupCSV() {
+  if (!cards.length) { showToast('No cards to export', 'red'); return; }
+  var headers = [
+    'Title','Player','Year','Manufacturer','Set','CardNumber','Parallel',
+    'Sport','League','Team','Rookie','Autograph','Memorabilia',
+    'Graded','Grader','Grade','CertNumber','CardCondition','CardThickness',
+    'Features','Vintage','OriginalReprint','Language','Era','Season',
+    'SuggestedPrice','Description'
+  ];
+  var rows = [headers.join(',')];
+  cards.forEach(function(c) {
+    var row = [
+      c.title, c.player, c.year, c.manufacturer, c.set, c.cardNumber, c.parallel,
+      c.sport, c.league, c.team,
+      c.isRookie ? 'Yes' : 'No', c.isAutograph ? 'Yes' : 'No', c.isMemorabilia ? 'Yes' : 'No',
+      c.isGraded ? 'Yes' : 'No', c.grader, c.grade, c.certNumber, c.cardCondition, c.cardThickness,
+      c.features, c.vintage ? 'Yes' : 'No', c.originalReprint, c.language, c.era, c.season,
+      c.suggestedPrice.toFixed(2), c.description
+    ].map(csvEscape);
+    rows.push(row.join(','));
+  });
+  var csv = rows.join('\r\n') + '\r\n';
+  downloadCSV(csv, 'card-backup');
+  showToast('Backup CSV downloaded (' + cards.length + ' cards)', 'grn');
+}
+
+function downloadCSV(csv, prefix) {
   var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
   a.href = url;
   var today = new Date();
   var ds = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
-  a.download = 'ebay-cards-' + ds + '.csv';
+  a.download = prefix + '-' + ds + '.csv';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  showToast('CSV downloaded (' + cards.length + ' cards)', 'grn');
 }
 
 function saveKey() {
@@ -639,7 +725,9 @@ function init() {
   safeOn('t-export', 'click', function() { goTab('export'); });
   safeOn('t-settings', 'click', function() { goTab('settings'); });
   safeOn('identifyBtn', 'click', identifyCard);
-  safeOn('exportBtn', 'click', exportCSV);
+  safeOn('exportScheduledBtn', 'click', exportScheduledCSV);
+  safeOn('exportDraftBtn', 'click', exportEbayDraftCSV);
+  safeOn('exportFullBtn', 'click', exportFullBackupCSV);
   safeOn('clearBtn', 'click', function() {
     if (!confirm('Delete ALL cards from your list? This cannot be undone.')) return;
     cards = [];
