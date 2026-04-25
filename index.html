@@ -608,6 +608,23 @@ function lookupComps(cardId) {
     .then(function(data) {
       if (!data.ok) {
         var errHtml = '<div class="comps-box error"><strong>No comps found.</strong> ' + escapeH(data.error || '') + '</div>';
+        // Show diagnostic info if present (helps figure out why parsing failed)
+        if (data.diagnostic) {
+          var d = data.diagnostic;
+          errHtml += '<div class="comps-box" style="margin-top:4px;font-size:10px">';
+          errHtml += '<strong>DIAGNOSTIC:</strong><br>';
+          errHtml += 'HTTP status: ' + d.httpStatus + '<br>';
+          errHtml += 'HTML length: ' + d.htmlLength + ' chars<br>';
+          errHtml += 'Looks blocked: ' + d.looksBlocked + '<br>';
+          errHtml += 'Has s-item: ' + d.containsListings + '<br>';
+          errHtml += 'Has $ chars: ' + d.containsPrices + '<br>';
+          errHtml += 'Has captcha: ' + d.containsCaptcha + '<br>';
+          if (d.htmlPreview) {
+            errHtml += '<br><strong>First 800 chars of response:</strong><br>';
+            errHtml += '<pre style="white-space:pre-wrap;word-break:break-all;font-size:9px;background:#fff;padding:6px;max-height:200px;overflow:auto">' + escapeH(d.htmlPreview) + '</pre>';
+          }
+          errHtml += '</div>';
+        }
         if (data.rawSamples && data.rawSamples.length) {
           errHtml += '<div class="comps-box" style="margin-top:4px"><strong>Found these but none matched your card:</strong>';
           data.rawSamples.forEach(function(s) {
