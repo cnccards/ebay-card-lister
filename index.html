@@ -82,6 +82,7 @@ input[type="file"]{display:none}
 .list-item-sub{font-size:10px;color:var(--fog);margin-top:2px;font-family:monospace}
 .list-item-price{font-family:'Oswald',sans-serif;font-size:17px;font-weight:700;color:var(--grn)}
 .list-item-del{width:28px;height:28px;border:none;background:var(--r2);color:var(--red);border-radius:5px;cursor:pointer;font-size:12px;flex-shrink:0}
+.list-item-edit{width:28px;height:28px;border:none;background:#e8f0fe;color:#1a73e8;border-radius:5px;cursor:pointer;font-size:11px;flex-shrink:0;padding:0}
 .ver-tag{position:fixed;bottom:6px;right:8px;font-size:9px;color:var(--fog);font-family:monospace;background:rgba(255,255,255,.7);padding:2px 6px;border-radius:4px;z-index:99}
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(80px);background:#0f172a;color:#fff;padding:10px 20px;border-radius:99px;font-size:12px;font-weight:600;z-index:500;transition:transform .3s;white-space:nowrap;max-width:88vw;text-align:center}
 .toast.show{transform:translateX(-50%) translateY(0)}
@@ -98,7 +99,7 @@ input[type="file"]{display:none}
 </style>
 </head>
 <body>
-<div class="ver-tag">v10 prefs</div>
+<div class="ver-tag">v11 edit cards</div>
 <div class="toast" id="toast"></div>
 <header>
   <div class="logo">
@@ -395,10 +396,12 @@ async function identifyCard() {
   }
 }
 
-function renderCardReview(card, imgs) {
+function renderCardReview(card, imgs, editCtx) {
+  editCtx = editCtx || null;
   var resultWrap = document.getElementById('resultWrap');
   var conf = card.confidence || 'medium';
-  var html = '<div class="success-box">&#x2728; Card identified (' + conf + ' confidence). Review and edit below.</div>';
+  var headerMsg = editCtx ? '&#x270F;&#xFE0F; Editing card. Make changes and save below.' : '&#x2728; Card identified (' + conf + ' confidence). Review and edit below.';
+  var html = '<div class="success-box">' + headerMsg + '</div>';
   html += '<div class="card"><div class="sh">Title (eBay listing)</div>';
   html += '<div class="form-grp"><textarea id="f-title" maxlength="80" style="min-height:50px">' + escapeH(card.title || '') + '</textarea><div class="title-char" id="titleChar"></div></div>';
   html += '<div class="sh">Core Info</div>';
@@ -429,7 +432,8 @@ function renderCardReview(card, imgs) {
   html += '<div class="form-grp"><label>Description</label><textarea id="f-desc">' + escapeH(card.description||'') + '</textarea></div>';
   html += '<div style="display:flex;gap:8px;margin-top:14px">';
   html += '<button class="btn btn-ghost" id="cancelAddBtn" style="flex:1">&#x2715; Cancel</button>';
-  html += '<button class="btn btn-grn" id="saveCardBtn" style="flex:2">&#x2713; Add to My List</button>';
+  var saveLabel = editCtx ? '&#x2713; Update Card' : '&#x2713; Add to My List';
+  html += '<button class="btn btn-grn" id="saveCardBtn" style="flex:2">' + saveLabel + '</button>';
   html += '</div></div>';
   resultWrap.innerHTML = html;
 
@@ -442,13 +446,14 @@ function renderCardReview(card, imgs) {
   document.getElementById('f-title').addEventListener('input', updateTitleChar);
   updateTitleChar();
   document.getElementById('cancelAddBtn').addEventListener('click', function() {
-    if (!confirm('Discard this card?')) return;
+    if (!confirm(editCtx ? 'Cancel editing? Changes will be lost.' : 'Discard this card?')) return;
     resultWrap.innerHTML = '';
     pendingImages = [];
     renderPreviews();
+    if (editCtx) goTab('list');
   });
   document.getElementById('saveCardBtn').addEventListener('click', function() {
-    saveCardFromForm(imgs, card);
+    saveCardFromForm(imgs, card, editCtx);
   });
 }
 
@@ -458,7 +463,8 @@ function escapeH(s) {
   });
 }
 
-function saveCardFromForm(imgs, originalCard) {
+function saveCardFromForm(imgs, originalCard, editCtx) {
+  editCtx = editCtx || null;
   function v(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; }
   var title = v('f-title');
   if (title.length > 80) { showToast('Title too long (max 80 chars)', 'red'); return; }
@@ -467,8 +473,9 @@ function saveCardFromForm(imgs, originalCard) {
   if (isNaN(price) || price <= 0) { showToast('Valid price required', 'red'); return; }
 
   var card = {
-    id: 'c_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
-    addedAt: new Date().toISOString(),
+    id: editCtx ? editCtx.editingId : 'c_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+    addedAt: editCtx && originalCard.addedAt ? originalCard.addedAt : new Date().toISOString(),
+    updatedAt: editCtx ? new Date().toISOString() : null,
     title: title,
     player: v('f-player'), year: v('f-year'), manufacturer: v('f-mfr'),
     set: v('f-set'), cardNumber: v('f-num'), parallel: v('f-par'),
@@ -478,7 +485,7 @@ function saveCardFromForm(imgs, originalCard) {
     grader: v('f-grader'), grade: v('f-grade'), certNumber: v('f-cert'),
     cardCondition: v('f-cond'), cardThickness: v('f-thick'),
     features: v('f-feat'), suggestedPrice: price, description: v('f-desc'),
-    thumbnail: imgs[0] ? imgs[0].dataUrl : null,
+    thumbnail: imgs[0] ? imgs[0].dataUrl : (originalCard.thumbnail || null),
     vintage: originalCard.vintage || false,
     originalReprint: originalCard.originalReprint || 'Original',
     language: originalCard.language || 'English',
@@ -486,14 +493,34 @@ function saveCardFromForm(imgs, originalCard) {
     season: originalCard.season || v('f-year'),
     memorabiliaType: originalCard.memorabiliaType || 'None'
   };
-  cards.push(card);
-  ls.set('cards', cards);
-  updateCount();
-  pendingImages = [];
-  renderPreviews();
-  document.getElementById('resultWrap').innerHTML = '';
-  showToast('Added! ' + cards.length + ' card(s) in list', 'grn');
-  goTab('list');
+
+  if (editCtx) {
+    // Replace card at the same index
+    var found = false;
+    for (var i = 0; i < cards.length; i++) {
+      if (cards[i].id === editCtx.editingId) {
+        cards[i] = card;
+        found = true;
+        break;
+      }
+    }
+    if (!found) cards.push(card); // fallback if it was deleted in another tab
+    ls.set('cards', cards);
+    pendingImages = [];
+    renderPreviews();
+    document.getElementById('resultWrap').innerHTML = '';
+    showToast('Card updated', 'grn');
+    goTab('list');
+  } else {
+    cards.push(card);
+    ls.set('cards', cards);
+    updateCount();
+    pendingImages = [];
+    renderPreviews();
+    document.getElementById('resultWrap').innerHTML = '';
+    showToast('Added! ' + cards.length + ' card(s) in list', 'grn');
+    goTab('list');
+  }
 }
 
 function renderList() {
@@ -511,13 +538,16 @@ function renderList() {
     html += '<div class="list-item-sub">' + escapeH(c.year) + ' ' + escapeH(c.set) + ' &middot; ' + escapeH(c.player) + '</div>';
     html += '</div>';
     html += '<div class="list-item-price">$' + c.suggestedPrice.toFixed(2) + '</div>';
-    html += '<button class="list-item-del" data-id="' + c.id + '">&#x2715;</button>';
+    html += '<div style="display:flex;flex-direction:column;gap:4px;margin-left:6px">';
+    html += '<button class="list-item-edit" data-id="' + c.id + '" title="Edit">&#x270F;&#xFE0F;</button>';
+    html += '<button class="list-item-del" data-id="' + c.id + '" title="Delete">&#x2715;</button>';
+    html += '</div>';
     html += '</div>';
   });
   wrap.innerHTML = html;
-  var btns = wrap.querySelectorAll('.list-item-del');
-  for (var i = 0; i < btns.length; i++) {
-    btns[i].addEventListener('click', function() {
+  var dels = wrap.querySelectorAll('.list-item-del');
+  for (var i = 0; i < dels.length; i++) {
+    dels[i].addEventListener('click', function() {
       var id = this.getAttribute('data-id');
       if (!confirm('Delete this card from your list?')) return;
       cards = cards.filter(function(c) { return c.id !== id; });
@@ -526,6 +556,33 @@ function renderList() {
       renderList();
     });
   }
+  var edits = wrap.querySelectorAll('.list-item-edit');
+  for (var j = 0; j < edits.length; j++) {
+    edits[j].addEventListener('click', function() {
+      var id = this.getAttribute('data-id');
+      editCard(id);
+    });
+  }
+}
+
+// v11: edit existing card by re-using the review form with editing context
+function editCard(id) {
+  var card = null, idx = -1;
+  for (var i = 0; i < cards.length; i++) {
+    if (cards[i].id === id) { card = cards[i]; idx = i; break; }
+  }
+  if (!card) return;
+  // Switch to identify tab (where the form lives), restore thumbnail as image
+  goTab('add');
+  var imgs = card.thumbnail ? [{ dataUrl: card.thumbnail }] : [];
+  pendingImages = imgs;
+  renderPreviews();
+  renderCardReview(card, imgs, { editingId: id, editingIdx: idx });
+  // Scroll review into view
+  setTimeout(function() {
+    var rw = document.getElementById('resultWrap');
+    if (rw) rw.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 100);
 }
 
 function csvEscape(v) {
