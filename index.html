@@ -109,7 +109,7 @@ input[type="file"]{display:none}
 </style>
 </head>
 <body>
-<div class="ver-tag">v12 sold comps</div>
+<div class="ver-tag">v13 comps fix</div>
 <div class="toast" id="toast"></div>
 <header>
   <div class="logo">
@@ -600,16 +600,29 @@ function lookupComps(cardId) {
   // Show loading state
   slot.innerHTML = '<div class="comps-box loading">&#x23F3; Fetching recent eBay sold comps&hellip;</div>';
 
-  // Call our /api/comps function with the card title
-  fetch('/api/comps?title=' + encodeURIComponent(card.title))
+  // Call our /api/comps function with the card title + player name (for filtering)
+  var qs = '/api/comps?title=' + encodeURIComponent(card.title);
+  if (card.player) qs += '&player=' + encodeURIComponent(card.player);
+  fetch(qs)
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (!data.ok) {
-        slot.innerHTML = '<div class="comps-box error"><strong>No comps found.</strong> ' + escapeH(data.error || '') + '</div>';
+        var errHtml = '<div class="comps-box error"><strong>No comps found.</strong> ' + escapeH(data.error || '') + '</div>';
+        if (data.rawSamples && data.rawSamples.length) {
+          errHtml += '<div class="comps-box" style="margin-top:4px"><strong>Found these but none matched your card:</strong>';
+          data.rawSamples.forEach(function(s) {
+            errHtml += '<div style="font-size:10px;margin:3px 0;color:#555">$' + s.price + ' &mdash; ' + escapeH(s.title.slice(0,70)) + '</div>';
+          });
+          errHtml += '</div>';
+        }
+        slot.innerHTML = errHtml;
         return;
       }
       var html = '<div class="comps-box">';
-      html += '<div style="font-weight:700;margin-bottom:6px">&#x1F4C8; eBay Sold Comps (' + data.count + ' recent sales)</div>';
+      html += '<div style="font-weight:700;margin-bottom:6px">&#x1F4C8; eBay Sold Comps (' + data.count + ' matched';
+      if (data.filteredByPlayer) html += ', filtered by player';
+      if (data.filteredByGrade) html += ', filtered by ' + data.filteredByGrade;
+      html += ')</div>';
       html += '<div class="comps-row"><span>Suggested Price:</span><strong>$' + data.suggested.toFixed(2) + '</strong></div>';
       html += '<div class="comps-row"><span>Median:</span>$' + data.median.toFixed(2) + '</div>';
       html += '<div class="comps-row"><span>Range:</span>$' + data.low.toFixed(2) + ' &ndash; $' + data.high.toFixed(2) + '</div>';
@@ -621,6 +634,15 @@ function lookupComps(cardId) {
         var color = diff > 0 ? '#15803d' : '#991b1b';
         var sign = diff > 0 ? '+' : '';
         html += '<div class="comps-row" style="color:' + color + ';font-weight:600"><span>vs Suggested:</span>' + sign + '$' + diff.toFixed(2) + '</div>';
+      }
+
+      // Show actual matched listings (so user can verify quality)
+      if (data.samples && data.samples.length) {
+        html += '<div style="margin-top:8px;padding-top:6px;border-top:1px solid #e5d49a"><div style="font-weight:600;font-size:10px;margin-bottom:4px;color:#666">RECENT SOLD MATCHES:</div>';
+        data.samples.slice(0, 5).forEach(function(s) {
+          html += '<div style="font-size:10px;margin:3px 0;display:flex;justify-content:space-between;gap:6px"><span style="flex:1;color:#555">' + escapeH(s.title.slice(0,55)) + '</span><strong style="white-space:nowrap">$' + s.price.toFixed(2) + '</strong></div>';
+        });
+        html += '</div>';
       }
 
       html += '<div class="comps-actions">';
