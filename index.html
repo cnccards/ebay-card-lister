@@ -83,6 +83,16 @@ input[type="file"]{display:none}
 .list-item-price{font-family:'Oswald',sans-serif;font-size:17px;font-weight:700;color:var(--grn)}
 .list-item-del{width:28px;height:28px;border:none;background:var(--r2);color:var(--red);border-radius:5px;cursor:pointer;font-size:12px;flex-shrink:0}
 .list-item-edit{width:28px;height:28px;border:none;background:#e8f0fe;color:#1a73e8;border-radius:5px;cursor:pointer;font-size:11px;flex-shrink:0;padding:0}
+.list-item-comps{width:28px;height:28px;border:none;background:#fff4d6;color:#b8860b;border-radius:5px;cursor:pointer;font-size:11px;flex-shrink:0;padding:0;font-weight:700}
+.comps-box{margin:6px 0 10px;padding:10px 12px;background:#fff8e1;border:1px solid #ffd966;border-radius:6px;font-size:12px}
+.comps-box.loading{background:#f3f4f6;border-color:#ddd;color:#666}
+.comps-box.error{background:#fef2f2;border-color:#fca5a5;color:#991b1b}
+.comps-row{display:flex;justify-content:space-between;margin:4px 0;font-size:11px}
+.comps-row strong{font-size:14px}
+.comps-actions{display:flex;gap:6px;margin-top:8px}
+.comps-actions button{flex:1;padding:6px;font-size:11px;border:none;border-radius:4px;cursor:pointer;font-weight:600}
+.comps-set-price{background:#dcfce7;color:#15803d}
+.comps-view-ebay{background:#dbeafe;color:#1e40af}
 .ver-tag{position:fixed;bottom:6px;right:8px;font-size:9px;color:var(--fog);font-family:monospace;background:rgba(255,255,255,.7);padding:2px 6px;border-radius:4px;z-index:99}
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(80px);background:#0f172a;color:#fff;padding:10px 20px;border-radius:99px;font-size:12px;font-weight:600;z-index:500;transition:transform .3s;white-space:nowrap;max-width:88vw;text-align:center}
 .toast.show{transform:translateX(-50%) translateY(0)}
@@ -99,7 +109,7 @@ input[type="file"]{display:none}
 </style>
 </head>
 <body>
-<div class="ver-tag">v11 edit cards</div>
+<div class="ver-tag">v12 sold comps</div>
 <div class="toast" id="toast"></div>
 <header>
   <div class="logo">
@@ -531,6 +541,7 @@ function renderList() {
   }
   var html = '';
   cards.forEach(function(c) {
+    html += '<div class="list-item-wrap">';
     html += '<div class="list-item">';
     html += '<div class="list-item-thumb">' + (c.thumbnail ? '<img src="' + c.thumbnail + '"/>' : '&#x1F3C6;') + '</div>';
     html += '<div class="list-item-main">';
@@ -539,9 +550,12 @@ function renderList() {
     html += '</div>';
     html += '<div class="list-item-price">$' + c.suggestedPrice.toFixed(2) + '</div>';
     html += '<div style="display:flex;flex-direction:column;gap:4px;margin-left:6px">';
+    html += '<button class="list-item-comps" data-id="' + c.id + '" title="Sold Comps">$</button>';
     html += '<button class="list-item-edit" data-id="' + c.id + '" title="Edit">&#x270F;&#xFE0F;</button>';
     html += '<button class="list-item-del" data-id="' + c.id + '" title="Delete">&#x2715;</button>';
     html += '</div>';
+    html += '</div>';
+    html += '<div class="comps-slot" id="comps-' + c.id + '"></div>';
     html += '</div>';
   });
   wrap.innerHTML = html;
@@ -563,6 +577,83 @@ function renderList() {
       editCard(id);
     });
   }
+  var compBtns = wrap.querySelectorAll('.list-item-comps');
+  for (var k = 0; k < compBtns.length; k++) {
+    compBtns[k].addEventListener('click', function() {
+      var id = this.getAttribute('data-id');
+      lookupComps(id);
+    });
+  }
+}
+
+// v12: Sold-comp lookup via /api/comps serverless function
+function lookupComps(cardId) {
+  var card = null;
+  for (var i = 0; i < cards.length; i++) {
+    if (cards[i].id === cardId) { card = cards[i]; break; }
+  }
+  if (!card) return;
+
+  var slot = document.getElementById('comps-' + cardId);
+  if (!slot) return;
+
+  // Show loading state
+  slot.innerHTML = '<div class="comps-box loading">&#x23F3; Fetching recent eBay sold comps&hellip;</div>';
+
+  // Call our /api/comps function with the card title
+  fetch('/api/comps?title=' + encodeURIComponent(card.title))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.ok) {
+        slot.innerHTML = '<div class="comps-box error"><strong>No comps found.</strong> ' + escapeH(data.error || '') + '</div>';
+        return;
+      }
+      var html = '<div class="comps-box">';
+      html += '<div style="font-weight:700;margin-bottom:6px">&#x1F4C8; eBay Sold Comps (' + data.count + ' recent sales)</div>';
+      html += '<div class="comps-row"><span>Suggested Price:</span><strong>$' + data.suggested.toFixed(2) + '</strong></div>';
+      html += '<div class="comps-row"><span>Median:</span>$' + data.median.toFixed(2) + '</div>';
+      html += '<div class="comps-row"><span>Range:</span>$' + data.low.toFixed(2) + ' &ndash; $' + data.high.toFixed(2) + '</div>';
+      html += '<div class="comps-row"><span>Your Price:</span>$' + card.suggestedPrice.toFixed(2) + '</div>';
+
+      // Diff vs suggested
+      var diff = data.suggested - card.suggestedPrice;
+      if (Math.abs(diff) > 1) {
+        var color = diff > 0 ? '#15803d' : '#991b1b';
+        var sign = diff > 0 ? '+' : '';
+        html += '<div class="comps-row" style="color:' + color + ';font-weight:600"><span>vs Suggested:</span>' + sign + '$' + diff.toFixed(2) + '</div>';
+      }
+
+      html += '<div class="comps-actions">';
+      html += '<button class="comps-set-price" data-id="' + cardId + '" data-price="' + data.suggested + '">Set $' + data.suggested.toFixed(2) + '</button>';
+      html += '<button class="comps-view-ebay" data-url="' + escapeH(data.searchUrl) + '">View on eBay</button>';
+      html += '</div>';
+      html += '</div>';
+      slot.innerHTML = html;
+
+      // Wire up the action buttons
+      var setBtn = slot.querySelector('.comps-set-price');
+      if (setBtn) {
+        setBtn.addEventListener('click', function() {
+          var newPrice = parseFloat(this.getAttribute('data-price'));
+          var cId = this.getAttribute('data-id');
+          for (var n = 0; n < cards.length; n++) {
+            if (cards[n].id === cId) { cards[n].suggestedPrice = newPrice; break; }
+          }
+          ls.set('cards', cards);
+          showToast('Price updated to $' + newPrice.toFixed(2), 'grn');
+          renderList();
+        });
+      }
+      var viewBtn = slot.querySelector('.comps-view-ebay');
+      if (viewBtn) {
+        viewBtn.addEventListener('click', function() {
+          window.open(this.getAttribute('data-url'), '_blank');
+        });
+      }
+    })
+    .catch(function(e) {
+      slot.innerHTML = '<div class="comps-box error"><strong>Error:</strong> ' + escapeH(e.message || 'Failed to fetch comps') + '</div>';
+    });
 }
 
 // v11: edit existing card by re-using the review form with editing context
