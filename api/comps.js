@@ -1,18 +1,14 @@
-// /api/comps - Fetches recent eBay sold listings for a card title
-// v2 (rebuilt): strict filtering, player name validation, returns sample data
+// /api/comps - v3 with diagnostics
+// If parsing fails, returns HTML preview to diagnose what eBay is returning
 
 export default async function handler(req, res) {
   const t0 = Date.now();
   try {
     const title = (req.query && req.query.title) || '';
     const player = (req.query && req.query.player) || '';
-    const debug = !!(req.query && req.query.debug);
 
     if (!title || title.length < 5) {
-      return res.status(400).json({
-        ok: false,
-        error: 'Missing or too-short "title" query parameter (need 5+ chars).'
-      });
+      return res.status(400).json({ ok: false, error: 'Missing title' });
     }
 
     const cleanTitle = String(title).trim().slice(0, 200);
@@ -26,7 +22,7 @@ export default async function handler(req, res) {
     const fetchRes = await fetch(ebayUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
         'Cache-Control': 'no-cache',
         'Sec-Fetch-Dest': 'document',
@@ -38,110 +34,141 @@ export default async function handler(req, res) {
     });
     clearTimeout(timeout);
 
-    if (!fetchRes.ok) {
-      return res.status(200).json({
-        ok: false,
-        error: 'eBay returned HTTP ' + fetchRes.status,
-        elapsedMs: Date.now() - t0
-      });
-    }
-
+    const status = fetchRes.status;
     const html = await fetchRes.text();
 
-    let playerKey = (player || '').trim().toLowerCase();
+    // Diagnostic info
+    const htmlLength = html.length;
+    const looksBlocked = html.length < 5000 ||
+                         html.toLowerCase().indexOf('captcha') !== -1 ||
+                         html.toLowerCase().indexOf('robot') !== -1 ||
+                         html.toLowerCase().indexOf('access denied') !== -1;
 
-    // Parse all li.s-item blocks
-    const itemRe = /<li[^>]+class="[^"]*s-item[^"]*"[^>]*>([\s\S]*?)<\/li>/g;
+    // Try MULTIPLE parsing strategies
     const allMatches = [];
+
+    // Strategy 1: Original li.s-item with span price
+    const re1 = /<li[^>]+class="[^"]*s-item[^"]*"[^>]*>([\s\S]*?)<\/li>/g;
     let m;
-    while ((m = itemRe.exec(html)) !== null && allMatches.length < 60) {
+    while ((m = re1.exec(html)) !== null && allMatches.length < 60) {
       const block = m[1];
       if (block.indexOf('Shop on eBay') !== -1) continue;
-
-      let itemTitle = '';
-      const t1 = block.match(/<span[^>]*class="[^"]*s-item__title[^"]*"[^>]*>([\s\S]*?)<\/span>/);
-      if (t1) {
-        itemTitle = t1[1].replace(/<span[^>]*>[\s\S]*?<\/span>/g, '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
-        if (!itemTitle) {
-          const inner = t1[1].match(/<span[^>]*>([^<]+)<\/span>/);
-          if (inner) itemTitle = inner[1].trim();
-        }
-      }
-      if (!itemTitle) continue;
-      if (itemTitle.toLowerCase() === 'new listing') continue;
-      if (itemTitle.toLowerCase().indexOf('shop on ebay') !== -1) continue;
-
-      const p1 = block.match(/<span[^>]*class="[^"]*s-item__price[^"]*"[^>]*>([\s\S]*?)<\/span>/);
-      if (!p1) continue;
-      const priceText = p1[1].replace(/<[^>]+>/g, '').replace(/[,\s]/g, '');
+      const t = block.match(/<span[^>]*class="[^"]*s-item__title[^"]*"[^>]*>([\s\S]*?)<\/span>/);
+      const p = block.match(/<span[^>]*class="[^"]*s-item__price[^"]*"[^>]*>([\s\S]*?)<\/span>/);
+      if (!t || !p) continue;
+      const itemTitle = t[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+      if (!itemTitle || itemTitle.toLowerCase() === 'new listing') continue;
+      const priceText = p[1].replace(/<[^>]+>/g, '').replace(/[,\s]/g, '');
       const priceNumMatch = priceText.match(/\$(\d+(?:\.\d+)?)/);
       if (!priceNumMatch) continue;
       const price = parseFloat(priceNumMatch[1]);
       if (isNaN(price) || price < 1) continue;
-
       allMatches.push({ title: itemTitle, price: price });
     }
 
-    // Filter by player name relevance (if we have one)
-    let filtered = allMatches;
-    let usedFiltering = false;
-    if (playerKey) {
-      const playerFiltered = allMatches.filter(item => {
-        return item.title.toLowerCase().indexOf(playerKey) !== -1;
-      });
-      if (playerFiltered.length >= 1) {
-        filtered = playerFiltered;
-        usedFiltering = true;
+    // Strategy 2: If strategy 1 found nothing, try div-based parsing
+    // eBay also uses <div class="s-item__wrapper"> and <div class="s-card">
+    if (allMatches.length === 0) {
+      // Try finding any element with class containing "s-item__title" and "s-item__price"
+      // These could be in any container, not just <li>
+      const titles = [];
+      const titleRe = /<(?:span|div|h3|a)[^>]*class="[^"]*s-item__title[^"]*"[^>]*>([\s\S]*?)<\/(?:span|div|h3|a)>/g;
+      while ((m = titleRe.exec(html)) !== null) {
+        const t = m[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+        if (t && t.toLowerCase() !== 'new listing' && t.toLowerCase().indexOf('shop on') === -1) {
+          titles.push(t);
+        }
+      }
+      const prices = [];
+      const priceRe = /<(?:span|div)[^>]*class="[^"]*s-item__price[^"]*"[^>]*>([\s\S]*?)<\/(?:span|div)>/g;
+      while ((m = priceRe.exec(html)) !== null) {
+        const pt = m[1].replace(/<[^>]+>/g, '').replace(/[,\s]/g, '');
+        const pm = pt.match(/\$(\d+(?:\.\d+)?)/);
+        if (pm) {
+          const pv = parseFloat(pm[1]);
+          if (!isNaN(pv) && pv >= 1) prices.push(pv);
+        }
+      }
+      // Pair them up by index
+      const pairs = Math.min(titles.length, prices.length);
+      for (let i = 0; i < pairs; i++) {
+        allMatches.push({ title: titles[i], price: prices[i] });
       }
     }
 
-    // If we have a grade in the title, prefer matches with same grade
+    // Strategy 3: Find any "POSITIVE" sold-price spans by class POSITIVE
+    if (allMatches.length === 0) {
+      // eBay uses class="POSITIVE" for sold prices
+      const posRe = /<span[^>]*class="POSITIVE"[^>]*>([\s\S]*?)<\/span>/g;
+      const posPrices = [];
+      while ((m = posRe.exec(html)) !== null) {
+        const pt = m[1].replace(/<[^>]+>/g, '').replace(/[,\s]/g, '');
+        const pm = pt.match(/\$(\d+(?:\.\d+)?)/);
+        if (pm) {
+          const pv = parseFloat(pm[1]);
+          if (!isNaN(pv) && pv >= 1) posPrices.push(pv);
+        }
+      }
+      // Pair with sequential dummy titles
+      posPrices.forEach(p => allMatches.push({ title: '(price only)', price: p }));
+    }
+
+    // If STILL no matches, return diagnostic info
+    if (allMatches.length === 0) {
+      return res.status(200).json({
+        ok: false,
+        error: 'No matches parsed. ' + (looksBlocked ? 'eBay may be blocking us.' : 'eBay HTML format may have changed.'),
+        diagnostic: {
+          httpStatus: status,
+          htmlLength: htmlLength,
+          looksBlocked: looksBlocked,
+          htmlPreview: html.slice(0, 800),
+          containsListings: html.indexOf('s-item') !== -1,
+          containsPrices: html.indexOf('$') !== -1,
+          containsCaptcha: html.toLowerCase().indexOf('captcha') !== -1,
+          containsPleaseVerify: html.toLowerCase().indexOf('please verify') !== -1
+        },
+        searchUrl: ebayUrl,
+        elapsedMs: Date.now() - t0
+      });
+    }
+
+    // Filter by player if provided
+    let filtered = allMatches;
+    let usedPlayerFilter = false;
+    const playerKey = (player || '').trim().toLowerCase();
+    if (playerKey) {
+      const lastNameOnly = playerKey.split(' ').pop(); // "Aaron Judge" → "judge"
+      const playerFiltered = allMatches.filter(item =>
+        item.title.toLowerCase().indexOf(lastNameOnly) !== -1
+      );
+      if (playerFiltered.length >= 1) {
+        filtered = playerFiltered;
+        usedPlayerFilter = true;
+      }
+    }
+
+    // Filter by grade if title has one
     const gradeMatch = cleanTitle.match(/\b(PSA|BGS|SGC|CGC)\s*(\d+(?:\.\d+)?)\b/i);
     let gradeFiltered = filtered;
     let usedGradeFilter = null;
     if (gradeMatch) {
       const grader = gradeMatch[1].toUpperCase();
       const grade = gradeMatch[2];
-      const gradeMatched = filtered.filter(item => {
-        const t = item.title.toUpperCase();
-        // Match "PSA 9", "PSA9", "PSA  9"
-        const re = new RegExp('\\b' + grader + '\\s*' + grade.replace('.', '\\.') + '\\b');
-        return re.test(t);
-      });
-      if (gradeMatched.length >= 1) {
-        gradeFiltered = gradeMatched;
+      const re = new RegExp('\\b' + grader + '\\s*' + grade.replace('.', '\\.') + '\\b', 'i');
+      const gMatched = filtered.filter(item => re.test(item.title));
+      if (gMatched.length >= 1) {
+        gradeFiltered = gMatched;
         usedGradeFilter = grader + ' ' + grade;
       }
     }
 
-    if (gradeFiltered.length === 0) {
-      return res.status(200).json({
-        ok: false,
-        error: 'No matching sold listings found. Try a shorter or simpler title.',
-        searchUrl: ebayUrl,
-        rawCount: allMatches.length,
-        rawSamples: allMatches.slice(0, 5),
-        elapsedMs: Date.now() - t0
-      });
-    }
-
     // Drop extreme outliers
     const initSorted = gradeFiltered.map(x => x.price).sort((a, b) => a - b);
-    const initMed = initSorted.length % 2
-      ? initSorted[Math.floor(initSorted.length / 2)]
-      : (initSorted[initSorted.length/2 - 1] + initSorted[initSorted.length/2]) / 2;
+    const initMed = initSorted[Math.floor(initSorted.length / 2)];
     const finalSet = gradeFiltered.filter(x => x.price >= initMed / 10 && x.price <= initMed * 10);
 
     const sorted = finalSet.map(x => x.price).sort((a, b) => a - b);
-    if (!sorted.length) {
-      return res.status(200).json({
-        ok: false,
-        error: 'No valid prices after filtering.',
-        searchUrl: ebayUrl,
-        elapsedMs: Date.now() - t0
-      });
-    }
-
     const median = sorted.length % 2
       ? sorted[Math.floor(sorted.length / 2)]
       : (sorted[sorted.length/2 - 1] + sorted[sorted.length/2]) / 2;
@@ -154,16 +181,14 @@ export default async function handler(req, res) {
     if (sorted.length >= 5) {
       const trim = Math.floor(sorted.length * 0.15);
       const trimmed = sorted.slice(trim, sorted.length - trim);
-      const trimSum = trimmed.reduce((a, b) => a + b, 0);
-      suggested = trimSum / trimmed.length;
+      suggested = trimmed.reduce((a, b) => a + b, 0) / trimmed.length;
     }
 
-    res.setHeader('Cache-Control', 'public, max-age=1800');
     return res.status(200).json({
       ok: true,
       count: sorted.length,
       rawCount: allMatches.length,
-      filteredByPlayer: usedFiltering ? playerKey : null,
+      filteredByPlayer: usedPlayerFilter ? playerKey : null,
       filteredByGrade: usedGradeFilter,
       median: Math.round(median * 100) / 100,
       low: Math.round(low * 100) / 100,
