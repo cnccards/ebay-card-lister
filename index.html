@@ -83,16 +83,7 @@ input[type="file"]{display:none}
 .list-item-price{font-family:'Oswald',sans-serif;font-size:17px;font-weight:700;color:var(--grn)}
 .list-item-del{width:28px;height:28px;border:none;background:var(--r2);color:var(--red);border-radius:5px;cursor:pointer;font-size:12px;flex-shrink:0}
 .list-item-edit{width:28px;height:28px;border:none;background:#e8f0fe;color:#1a73e8;border-radius:5px;cursor:pointer;font-size:11px;flex-shrink:0;padding:0}
-.list-item-comps{width:28px;height:28px;border:none;background:#fff4d6;color:#b8860b;border-radius:5px;cursor:pointer;font-size:11px;flex-shrink:0;padding:0;font-weight:700}
-.comps-box{margin:6px 0 10px;padding:10px 12px;background:#fff8e1;border:1px solid #ffd966;border-radius:6px;font-size:12px}
-.comps-box.loading{background:#f3f4f6;border-color:#ddd;color:#666}
-.comps-box.error{background:#fef2f2;border-color:#fca5a5;color:#991b1b}
-.comps-row{display:flex;justify-content:space-between;margin:4px 0;font-size:11px}
-.comps-row strong{font-size:14px}
-.comps-actions{display:flex;gap:6px;margin-top:8px}
-.comps-actions button{flex:1;padding:6px;font-size:11px;border:none;border-radius:4px;cursor:pointer;font-weight:600}
-.comps-set-price{background:#dcfce7;color:#15803d}
-.comps-view-ebay{background:#dbeafe;color:#1e40af}
+.list-item-comps{width:28px;height:28px;border:none;background:#fff4d6;color:#b8860b;border-radius:5px;cursor:pointer;font-size:9px;flex-shrink:0;padding:0;font-weight:700;line-height:1}
 .ver-tag{position:fixed;bottom:6px;right:8px;font-size:9px;color:var(--fog);font-family:monospace;background:rgba(255,255,255,.7);padding:2px 6px;border-radius:4px;z-index:99}
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(80px);background:#0f172a;color:#fff;padding:10px 20px;border-radius:99px;font-size:12px;font-weight:600;z-index:500;transition:transform .3s;white-space:nowrap;max-width:88vw;text-align:center}
 .toast.show{transform:translateX(-50%) translateY(0)}
@@ -109,7 +100,7 @@ input[type="file"]{display:none}
 </style>
 </head>
 <body>
-<div class="ver-tag">v13 comps fix</div>
+<div class="ver-tag">v15 ai upgrade</div>
 <div class="toast" id="toast"></div>
 <header>
   <div class="logo">
@@ -196,7 +187,7 @@ var ls = {
 var cards = ls.get('cards') || [];
 var pendingImages = [];
 
-var GEMINI_MODEL = 'gemini-2.5-flash-lite';
+var GEMINI_MODEL = 'gemini-2.5-flash';
 var GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_MODEL + ':generateContent';
 
 var SYSTEM_PROMPT = "You are an expert sports card identifier and eBay lister. You will see one or more photos of a sports trading card (front, back, possibly a grading slab). Identify the card with extreme precision and return ONLY a valid JSON object matching this exact schema - no prose, no markdown fences, no explanation:\n\n" +
@@ -237,7 +228,31 @@ var SYSTEM_PROMPT = "You are an expert sports card identifier and eBay lister. Y
 "- DEFAULT TO UNGRADED: unless you clearly see a grading slab (PSA, BGS, SGC, CGC plastic case with label), set isGraded=false, grader='None', grade='None', certNumber=''.\n" +
 "- For ungraded cards, set cardCondition='Near Mint or Better'.\n" +
 "- For graded cards, set cardCondition='Graded'.\n" +
-"- Keep every field filled - never null/undefined.";
+"- Keep every field filled - never null/undefined.\n\n" +
+"YEAR ACCURACY (MOST IMPORTANT):\n" +
+"- The year on the card front is often the season, NOT the manufacturing year. A 2023 Topps Series 1 card released in early 2023 features 2022 season stats - call it '2023'.\n" +
+"- Look for COPYRIGHT info on the back (e.g. '© 2023 Topps') as the most reliable year indicator.\n" +
+"- Look for set logos that include the year.\n" +
+"- If you genuinely cannot determine the year (no copyright visible, no year in design), use the player's career years to make the most likely guess but mark confidence='low'.\n" +
+"- DO NOT guess year purely from card design - 2022/2023/2024 Topps designs look similar.\n\n" +
+"SET IDENTIFICATION (common Topps/Panini products to recognize):\n" +
+"- TOPPS BASE/SERIES 1/2/UPDATE: White borders, team-color photo borders, simple design. 'Topps' logo bottom-right.\n" +
+"- TOPPS CHROME: Reflective/chromium finish on player photo, 'Chrome' logo. Refractor parallels have rainbow shimmer.\n" +
+"- TOPPS STADIUM CLUB: Premium full-bleed photography, cinematic action shots, minimal text/borders, often dramatic poses or close-ups. 'Stadium Club' name appears small at bottom or only on back. NO team logo border. NO stat box on front. If you see a beautiful action photo with the player filling the frame and almost no graphics, suspect Stadium Club.\n" +
+"- TOPPS HERITAGE: Looks like a vintage card from the 1950s-1970s, retro design.\n" +
+"- TOPPS BIG LEAGUE: Bright yellow border, cartoonish/casual look.\n" +
+"- TOPPS ALLEN & GINTER: Old-timey portrait style, ornate borders, mini cards.\n" +
+"- TOPPS GYPSY QUEEN: Vintage tobacco-card style with ornate filigree borders.\n" +
+"- TOPPS COSMIC CHROME: Space/galaxy themed background with chrome finish.\n" +
+"- BOWMAN: Blue 'Bowman' wordmark, prospect-focused. BOWMAN CHROME has chrome finish. BOWMAN DRAFT for draftees.\n" +
+"- PANINI PRIZM: Prismatic refractor finish with 'Prizm' logo. Silver Prizm is base parallel.\n" +
+"- PANINI SELECT: Tiered design (Concourse/Premier/Field Level), refractor finish.\n" +
+"- PANINI DONRUSS OPTIC: Optichrome finish with 'Optic' branding.\n" +
+"- PANINI MOSAIC: Mosaic prism pattern background.\n" +
+"- PANINI CONTENDERS: Football/basketball, often autograph-focused with 'ticket' design.\n" +
+"- LEAF: Independent brand, often autograph/memorabilia-heavy.\n" +
+"When you see ANY card, ask: 'is this a base flagship Topps Series 1/2 OR a premium product like Stadium Club / Chrome / Heritage?' Don't default to plain 'Topps' - look for distinctive premium product cues.\n\n" +
+"IF UNCERTAIN: set confidence='low' and use your best guess. The user will review and fix anything wrong.";
 
 function showToast(msg, type) {
   var el = document.getElementById('toast');
@@ -550,12 +565,11 @@ function renderList() {
     html += '</div>';
     html += '<div class="list-item-price">$' + c.suggestedPrice.toFixed(2) + '</div>';
     html += '<div style="display:flex;flex-direction:column;gap:4px;margin-left:6px">';
-    html += '<button class="list-item-comps" data-id="' + c.id + '" title="Sold Comps">$</button>';
+    html += '<button class="list-item-comps" data-title="' + escapeH(c.title) + '" title="Look up sold comps on 130point">130</button>';
     html += '<button class="list-item-edit" data-id="' + c.id + '" title="Edit">&#x270F;&#xFE0F;</button>';
     html += '<button class="list-item-del" data-id="' + c.id + '" title="Delete">&#x2715;</button>';
     html += '</div>';
     html += '</div>';
-    html += '<div class="comps-slot" id="comps-' + c.id + '"></div>';
     html += '</div>';
   });
   wrap.innerHTML = html;
@@ -577,123 +591,18 @@ function renderList() {
       editCard(id);
     });
   }
+  // v14: 130point lookup - opens external page with search pre-filled
   var compBtns = wrap.querySelectorAll('.list-item-comps');
   for (var k = 0; k < compBtns.length; k++) {
     compBtns[k].addEventListener('click', function() {
-      var id = this.getAttribute('data-id');
-      lookupComps(id);
+      var title = this.getAttribute('data-title') || '';
+      // 130point.com uses ?search= parameter
+      var url = 'https://130point.com/sales/?query=' + encodeURIComponent(title) + '&searchButton=&sortBy=EndTimeSoonest';
+      window.open(url, '_blank');
     });
   }
 }
 
-// v12: Sold-comp lookup via /api/comps serverless function
-function lookupComps(cardId) {
-  var card = null;
-  for (var i = 0; i < cards.length; i++) {
-    if (cards[i].id === cardId) { card = cards[i]; break; }
-  }
-  if (!card) return;
-
-  var slot = document.getElementById('comps-' + cardId);
-  if (!slot) return;
-
-  // Show loading state
-  slot.innerHTML = '<div class="comps-box loading">&#x23F3; Fetching recent eBay sold comps&hellip;</div>';
-
-  // Call our /api/comps function with the card title + player name (for filtering)
-  var qs = '/api/comps?title=' + encodeURIComponent(card.title);
-  if (card.player) qs += '&player=' + encodeURIComponent(card.player);
-  fetch(qs)
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      if (!data.ok) {
-        var errHtml = '<div class="comps-box error"><strong>No comps found.</strong> ' + escapeH(data.error || '') + '</div>';
-        // Show diagnostic info if present (helps figure out why parsing failed)
-        if (data.diagnostic) {
-          var d = data.diagnostic;
-          errHtml += '<div class="comps-box" style="margin-top:4px;font-size:10px">';
-          errHtml += '<strong>DIAGNOSTIC:</strong><br>';
-          errHtml += 'HTTP status: ' + d.httpStatus + '<br>';
-          errHtml += 'HTML length: ' + d.htmlLength + ' chars<br>';
-          errHtml += 'Looks blocked: ' + d.looksBlocked + '<br>';
-          errHtml += 'Has s-item: ' + d.containsListings + '<br>';
-          errHtml += 'Has $ chars: ' + d.containsPrices + '<br>';
-          errHtml += 'Has captcha: ' + d.containsCaptcha + '<br>';
-          if (d.htmlPreview) {
-            errHtml += '<br><strong>First 800 chars of response:</strong><br>';
-            errHtml += '<pre style="white-space:pre-wrap;word-break:break-all;font-size:9px;background:#fff;padding:6px;max-height:200px;overflow:auto">' + escapeH(d.htmlPreview) + '</pre>';
-          }
-          errHtml += '</div>';
-        }
-        if (data.rawSamples && data.rawSamples.length) {
-          errHtml += '<div class="comps-box" style="margin-top:4px"><strong>Found these but none matched your card:</strong>';
-          data.rawSamples.forEach(function(s) {
-            errHtml += '<div style="font-size:10px;margin:3px 0;color:#555">$' + s.price + ' &mdash; ' + escapeH(s.title.slice(0,70)) + '</div>';
-          });
-          errHtml += '</div>';
-        }
-        slot.innerHTML = errHtml;
-        return;
-      }
-      var html = '<div class="comps-box">';
-      html += '<div style="font-weight:700;margin-bottom:6px">&#x1F4C8; eBay Sold Comps (' + data.count + ' matched';
-      if (data.filteredByPlayer) html += ', filtered by player';
-      if (data.filteredByGrade) html += ', filtered by ' + data.filteredByGrade;
-      html += ')</div>';
-      html += '<div class="comps-row"><span>Suggested Price:</span><strong>$' + data.suggested.toFixed(2) + '</strong></div>';
-      html += '<div class="comps-row"><span>Median:</span>$' + data.median.toFixed(2) + '</div>';
-      html += '<div class="comps-row"><span>Range:</span>$' + data.low.toFixed(2) + ' &ndash; $' + data.high.toFixed(2) + '</div>';
-      html += '<div class="comps-row"><span>Your Price:</span>$' + card.suggestedPrice.toFixed(2) + '</div>';
-
-      // Diff vs suggested
-      var diff = data.suggested - card.suggestedPrice;
-      if (Math.abs(diff) > 1) {
-        var color = diff > 0 ? '#15803d' : '#991b1b';
-        var sign = diff > 0 ? '+' : '';
-        html += '<div class="comps-row" style="color:' + color + ';font-weight:600"><span>vs Suggested:</span>' + sign + '$' + diff.toFixed(2) + '</div>';
-      }
-
-      // Show actual matched listings (so user can verify quality)
-      if (data.samples && data.samples.length) {
-        html += '<div style="margin-top:8px;padding-top:6px;border-top:1px solid #e5d49a"><div style="font-weight:600;font-size:10px;margin-bottom:4px;color:#666">RECENT SOLD MATCHES:</div>';
-        data.samples.slice(0, 5).forEach(function(s) {
-          html += '<div style="font-size:10px;margin:3px 0;display:flex;justify-content:space-between;gap:6px"><span style="flex:1;color:#555">' + escapeH(s.title.slice(0,55)) + '</span><strong style="white-space:nowrap">$' + s.price.toFixed(2) + '</strong></div>';
-        });
-        html += '</div>';
-      }
-
-      html += '<div class="comps-actions">';
-      html += '<button class="comps-set-price" data-id="' + cardId + '" data-price="' + data.suggested + '">Set $' + data.suggested.toFixed(2) + '</button>';
-      html += '<button class="comps-view-ebay" data-url="' + escapeH(data.searchUrl) + '">View on eBay</button>';
-      html += '</div>';
-      html += '</div>';
-      slot.innerHTML = html;
-
-      // Wire up the action buttons
-      var setBtn = slot.querySelector('.comps-set-price');
-      if (setBtn) {
-        setBtn.addEventListener('click', function() {
-          var newPrice = parseFloat(this.getAttribute('data-price'));
-          var cId = this.getAttribute('data-id');
-          for (var n = 0; n < cards.length; n++) {
-            if (cards[n].id === cId) { cards[n].suggestedPrice = newPrice; break; }
-          }
-          ls.set('cards', cards);
-          showToast('Price updated to $' + newPrice.toFixed(2), 'grn');
-          renderList();
-        });
-      }
-      var viewBtn = slot.querySelector('.comps-view-ebay');
-      if (viewBtn) {
-        viewBtn.addEventListener('click', function() {
-          window.open(this.getAttribute('data-url'), '_blank');
-        });
-      }
-    })
-    .catch(function(e) {
-      slot.innerHTML = '<div class="comps-box error"><strong>Error:</strong> ' + escapeH(e.message || 'Failed to fetch comps') + '</div>';
-    });
-}
 
 // v11: edit existing card by re-using the review form with editing context
 function editCard(id) {
